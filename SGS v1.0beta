@@ -7,8 +7,8 @@
 // ====================== //
 
 // -----------------------
-strategy(title                   = "SmartGrid Strategy v1.6",
-         shorttitle              = "SGS-v1.6",
+strategy(title                   = "Smart Grid Strategy v1.0b",
+         shorttitle              = "SGS-v1.0b",
          overlay                 = true,
          max_bars_back           = 1000,
          initial_capital         = 10000,
