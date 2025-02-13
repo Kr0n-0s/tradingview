@@ -1,0 +1,25 @@
+// kr0n0s_subroutine_vers-1.0 , 31.dec.2024
+// ====================== //
+// ====    TIMING    ==== //
+// ====================== //
+
+// -----------------------
+timingX       =   true
+timEnabler    =   input.bool   (false,           title = "Time limit",                                                        group = "Start Time")
+startDay      =   input.int    (defval = 22,     title = "D : M : Y", step=1, minval = 1, maxval = 31,      inline ="date",   group = "Start Time")
+startMonth    =   input.int    (defval = 1,     title = ":",         step=1, minval = 1, maxval = 12,      inline ="date",   group = "Start Time")
+startYStr     =   input.string (defval = "2025", title = ":",         options=["2024","2025","2026","2027"],inline ="date",   group = "Start Time")
+startHour     =   input.int    (defval = 6,      title = "Hrs : Min ",step=1, minval = 0, maxval = 24,      inline= "clock",  group = "Start Time") - 1 //utc adjust
+startMinute   =   input.int    (defval = 6,      title = ":",         step=1, minval = 0, maxval = 59,      inline= "clock",  group = "Start Time")
+//
+startYear     =  2027
+if startYStr  == "2026"
+    startYear := 2026
+if startYStr  == "2025"
+    startYear := 2025
+if startYStr  == "2024"
+    startYear := 2024
+startTime     =   timestamp    (startYear, startMonth, startDay, startHour, startMinute, 00)
+if timEnabler and time < startTime 
+    timingX   :=  false
+// -----------------------

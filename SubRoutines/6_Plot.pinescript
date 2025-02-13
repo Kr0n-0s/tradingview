@@ -1,0 +1,27 @@
+// kr0n0s_subroutine_vers-1.0 , 31.dec.2024
+// ====================== //
+// ====     PLOT     ==== //
+// ====================== //
+
+// -----------------------
+LastPrice = src
+if trade_type == "LONG"
+    LastPrice := LastPriceL
+if trade_type == "SHORT"
+    LastPrice := LastPriceS
+// -----------------------
+LinePrice1 = LastPrice * (1 + grid_step)
+LinePrice2 = LastPrice 
+LinePrice3 = LastPrice * (1 - (grid_step))
+if Beta and (trade_type == "LONG")
+    LinePrice3 := LastPrice * (1 - (grid_step*(arK)))
+if Beta and (trade_type == "SHORT")
+    LinePrice1 := LastPrice * (1 + (grid_step*(arK)))
+// -----------------------
+a = plot(LinePrice1, "Price1 line", style= plot.style_line, linewidth = 2, color = color.rgb(020, 239, 009, 050))
+b = plot(LinePrice2, "Price2 line", style= plot.style_line, linewidth = 1, color = color.rgb(037, 191, 229, 050))
+c = plot(LinePrice3, "Price3 line", style= plot.style_line, linewidth = 2, color = color.rgb(243, 27, 7, 50))
+// -----------------------
+fill(a, b, color = color.rgb(8, 175, 247, 80))
+fill(c, b, color = color.rgb(243, 235, 4, 80))
+// -----------------------

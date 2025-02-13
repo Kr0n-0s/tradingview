@@ -1,0 +1,58 @@
+// kr0n0s_subroutine_vers-1.0 , 31.dec.2024
+// ====================== //
+// ====    TRADE     ==== //
+// ====================== //
+
+// -----------------------
+// CLOSE POSITION
+// -----------------------
+if closeLong
+    strategy.close(id = xID, comment="EXIT-" + xID + " (†" + str.tostring(math.round(strategy.max_drawdown_percent,2)) + "%)" ) //exit long
+    PyramidL   := PyramidL + 1
+    LastPriceL := src
+if closeShort
+    strategy.close(id = xID, comment="EXIT-" + xID + " (†" + str.tostring(math.round(strategy.max_drawdown_percent,2)) + "%)" ) //exit short
+    PyramidS   := PyramidS + 1
+    LastPriceS := src
+
+// -----------------------
+// PUMP STRATEGY
+// -----------------------
+quantity = (hodlquantity/src)
+// ----------------------- LONG
+// Pump Profit Position
+if openLong and timingX and hodl and strategy.netprofit_percent>=hodlquantity*10 and PyramidL <= (grid_levels-5) and (trade_type == "LONG")
+    strategy.entry( id = "Pump-L", direction = strategy.long, qty = quantity, comment="LONG PUMP " + str.tostring(hodlnumber+1) ) //enter hodl
+    entrypoint := entrypoint + src
+    hodlnumber := hodlnumber + 1
+    if hodlnumber == 1
+        starthodl := src
+// Sell Pump
+if timingX and hodl and (src >= starthodl * (1 + (grid_step))) and (trade_type == "LONG")
+    strategy.close( id = "Pump-L", comment="CASH L PUMP "  + str.tostring(hodlnumber) + ":" + str.tostring(math.round(entrypoint/hodlnumber,1)) )
+    entrypoint := 0
+    hodlnumber := 0
+    starthodl  := 0
+// ----------------------- SHORT
+// Pump Profit Position
+if openShort and timingX and hodl and strategy.netprofit_percent>=hodlquantity*10 and PyramidS <= (grid_levels-5) and (trade_type == "SHORT")
+    strategy.entry( id = "Pump-S", direction = strategy.short, qty = quantity, comment="SHORT PUMP " + str.tostring(hodlnumber+1) ) //enter hodl
+    entrypoint := entrypoint + src
+    hodlnumber := hodlnumber + 1
+    if hodlnumber == 1
+        starthodl := src
+// Sell Pump
+if timingX and hodl and (src <= starthodl * (1 - (grid_step))) and (trade_type == "SHORT")
+    strategy.close( id = "Pump-S", comment="CASH S PUMP "  + str.tostring(hodlnumber) + ":" + str.tostring(math.round(entrypoint/hodlnumber,1)) )
+    entrypoint := 0
+    hodlnumber := 0
+    starthodl  := 0
+
+// -----------------------
+// OPEN POSITION
+// -----------------------
+if openLong and timingX
+    strategy.entry(id = xID, direction = strategy.long, comment="ENTER-" + xID + " :" + str.tostring(src)) //enter long
+if openShort and timingX
+    strategy.entry(id = xID, direction = strategy.short, comment="ENTER-" + xID + " :" + str.tostring(src)) //enter short
+// -----------------------
