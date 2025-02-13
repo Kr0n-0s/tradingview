@@ -1,0 +1,63 @@
+// kr0n0s_subroutine_vers-1.0 , 31.dec.2024
+// ====================== //
+// ====     DATA     ==== //
+// ====================== //
+
+// -----------------------
+// DEFAULT
+// -----------------------
+// Inputs
+timeframe      = input.timeframe  ("1",    title = "Timeframe",                                            group = "Data"   )
+src            = input.source     (close,  title = "Source",                                               group = "Data"   )
+// -----------------------
+// Vars
+openLong      = false
+openShort     = false
+closeLong     = false
+closeShort    = false
+// -----------------------
+
+// -----------------------
+// SPECIFIC
+// -----------------------
+// Inputs
+step           = input.float      (0.5,    title = "Grid Step %",    minval=0.0, step=0.1,                 group = "Trading") / 100
+grid_levels    = input.int        (10,      title = "Max Grids #", minval=0,   maxval=999,                  group = "Trading")
+
+var trade_type = input.string     ("OFF",  title = "Trade Type", options=["LONG", "SHORT", "AUTO", "OFF"], group = "Trading")
+decLev         = input.int        (200,    title = "Auto decision Level #", minval = 1, step = 1,          group = "Trading")
+
+Delta          = input.bool       (false,   title = "Drawdown Reduction",                                   group = "Trading")
+faK            = input.int        (10,      title = "Risk Level #", minval = 0, step = 1,                   group = "Trading")
+
+hodl           = input.bool       (true,   title = "Profit Pump",                                          group = "Trading")
+hodlquantity   = input.float      (1.5,    title = "Pump %", minval = 0.1, step = 0.1,                     group = "Trading")
+
+Beta           = input.bool       (false,   title = "Asymmetric Risk",                                      group = "Trading")
+arK            = input.int        (10,      title = "Asymmetry Factor #", minval = 1, maxval = 20,         group = "Trading") / 10
+
+reset          = input.bool       (false,  title = "Average Reset",                                        group = "Trading")
+Gamma          = input.bool       (false,  title = "Recovery Stake",                                       group = "Trading")
+// -----------------------
+// Vars
+src           := request.security(syminfo.tickerid, timeframe, src)
+var Auto       = false
+if trade_type  == "AUTO"
+    Auto := true
+var LastPriceL = src
+var LastPriceS = src
+var PyramidL   = grid_levels
+var PyramidS   = grid_levels
+var grid_step = step
+xID           = ""
+var entrypoint = 0.0
+var hodlnumber = 0
+var starthodl  = 0.0
+var recovery1 = false
+var recovery2 = false
+var reduction = false
+var startL    = false
+var startS    = false
+// -----------------------
+
+

@@ -1,0 +1,148 @@
+// kr0n0s_subroutine_vers-1.0 , 31.dec.2024
+// ====================== //
+// ====   ENGINE     ==== //
+// ====================== //
+
+// ----------------------- 
+AverPrice    = (strategy.position_avg_price)     // Placeholder Average Position
+Long         = (strategy.position_size >  0)     // Placeholder Long Position
+Short        = (strategy.position_size <  0)     // Placeholder Short Position
+NoPos        = (strategy.position_size == 0)     // Placeholder No Position
+if PyramidL > grid_levels or PyramidS > grid_levels
+    NoPos := true
+    
+// -----------------------
+// LONG MODE
+// ----------------------- 
+// start grid, ex novo
+if (NoPos and (trade_type == "LONG")) or startL //open long
+    openLong  := true
+    LastPriceL := src
+    PyramidL   := grid_levels
+    grid_step := step
+    xID:= "L "+ str.tostring(PyramidL)
+    startL := false
+// extend grid, dynamic entry
+if Long and (PyramidL > 0)  and (trade_type == "LONG") and (src <= LastPriceL * (1 - (grid_step*(arK)))) and Beta // long re-enter
+    openLong  := true
+    LastPriceL := src
+    PyramidL   := PyramidL - 1
+    xID:= "L "+ str.tostring(PyramidL)
+    reduction := true
+// extend grid, preset entry
+if Long and (PyramidL > 0)  and (trade_type == "LONG") and (src <= LastPriceL * (1 - (grid_step))) and not Beta // long re-enter
+    openLong  := true
+    LastPriceL := src
+    PyramidL   := PyramidL - 1
+    xID:= "L "+ str.tostring(PyramidL)
+    reduction := true
+// take grid profit, fixed exit
+if Long and (src >= LastPriceL * (1 + (grid_step))) and (trade_type == "LONG")  and PyramidL >= 0 //close long
+    closeLong := true
+    xID:= "L "+ str.tostring(PyramidL)
+// -----------------------
+// option: reset grid -harvest chips
+if Long and reset and (PyramidL < (grid_levels - 1)) and (src >= AverPrice * (1 + (grid_step*math.sqrt(2)))) and (trade_type == "LONG")  //reset longs on Pythagoras Constant
+    strategy.close_all(comment="RESET_" + str.tostring(grid_levels) + " (†" + str.tostring(math.round(strategy.max_drawdown_percent,2)) + "%)")
+    recovery1 := false
+    recovery2 := false
+// option: drawdown recovery
+if Long and PyramidL == 0 and (trade_type == "LONG") and (src <= LastPriceL * 0.90) and Gamma and not recovery1
+    recovery1 := true
+    openLong  := true
+    xID:= "R1" 
+if Long and PyramidL == 0 and (trade_type == "LONG") and (src <= LastPriceL * 0.80) and Gamma and not recovery2
+    recovery2 := true
+    openLong  := true
+    xID:= "R2" 
+// option: drawdown reduction
+if reduction and PyramidL < grid_levels-faK and Delta and (trade_type == "LONG") and not openLong
+    closeLong := true
+    xID:= "L "+ str.tostring(PyramidL+faK+1)
+    reduction := false
+    PyramidL := PyramidL -1
+    
+// -----------------------
+//SHORT MODE
+// ----------------------- 
+// start grid, ex novo
+if (NoPos and (trade_type == "SHORT")) or startS //open short
+    openShort  := true
+    LastPriceS := src
+    PyramidS   := grid_levels
+    grid_step := step
+    xID:= "S "+ str.tostring(PyramidS)
+    startS := false
+// extend grid, dynamic entry
+if Short and (PyramidS > 0)  and (trade_type == "SHORT") and (src >= LastPriceS * (1 + (grid_step*(arK)))) and Beta // short re-enter
+    openShort  := true
+    LastPriceS := src
+    PyramidS   := PyramidS - 1
+    xID:=  "S "+ str.tostring(PyramidS)
+    reduction := true
+// extend grid, preset entry
+if Short and (PyramidS > 0)  and (trade_type == "SHORT") and (src >= LastPriceS * (1 + (grid_step))) and not Beta // short re-enter
+    openShort  := true
+    LastPriceS := src
+    PyramidS   := PyramidS - 1
+    xID:=  "S "+ str.tostring(PyramidS)
+    reduction := true
+// take grid profit, fixed exit
+if Short and (src <= LastPriceS * (1 - (grid_step))) and (trade_type == "SHORT")  and PyramidS >= 0 //close short
+    closeShort := true
+    xID:=  "S "+ str.tostring(PyramidS)
+// -----------------------
+// option: reset grid -harvest chips
+if Short and reset and (PyramidS < (grid_levels - 1)) and (src <= AverPrice * (1 - (grid_step*math.sqrt(2)))) and (trade_type == "SHORT")  //reset longs on Pythagoras Constant
+    strategy.close_all(comment="RESET_" + str.tostring(grid_levels) + " (†" + str.tostring(math.round(strategy.max_drawdown_percent,2)) + "%)")
+    recovery1 := false
+    recovery2 := false
+// option: drawdown recovery
+if Short and PyramidS == 0 and (trade_type == "SHORT") and (src >= LastPriceS * 1.1) and Gamma and not recovery1
+    recovery1 := true
+    openShort  := true
+    xID:= "R1" 
+if Short and PyramidS == 0 and (trade_type == "SHORT") and (src >= LastPriceS * 1.2) and Gamma and not recovery2
+    recovery2 := true
+    openShort  := true
+    xID:= "R2" 
+// option: drawdown reduction
+if reduction and PyramidS < grid_levels-faK and Delta and (trade_type == "SHORT") and not openShort
+    closeShort := true
+    xID:=  "S "+ str.tostring(PyramidS+faK+1)
+    reduction := false
+    PyramidS := PyramidS -1
+
+// -----------------------
+// AUTO MODE
+// -----------------------
+LongSignal  = false
+ShortSignal = false
+// -----------------------
+// Engine
+activity = 2 // nop placeholder
+// Decision
+if activity == 1
+    LongSignal := true
+if activity == 0
+    ShortSignal := true
+// -----------------------
+// AUTO Start strategy
+if Auto and (trade_type == "AUTO") and NoPos
+    if LongSignal
+        trade_type := "LONG"
+        startL := true
+    if ShortSignal
+        trade_type := "SHORT"
+        startS := true
+// AUTO Long strategy
+if Auto and (trade_type == "SHORT") and LongSignal
+    trade_type := "LONG"
+    strategy.close_all(comment="REVERSE/L")
+
+// AUTO Short strategy
+if Auto and (trade_type == "LONG") and ShortSignal
+    trade_type := "SHORT"
+    strategy.close_all(comment="REVERSE/S")
+
+// -----------------------
