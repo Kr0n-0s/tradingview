@@ -1,10 +1,10 @@
-// kr0n0s_script_vers-1.6 , 31.dec.2024
-//@version=6
-// -----------------------
-
+// kr0n0s_subroutine_vers-1.0 , 31.dec.2024
 // ====================== //
 // ====   STRATEGY   ==== //
 // ====================== //
+
+// -----------------------
+//@version=6
 
 // -----------------------
 strategy(title                   = "Smart Grid Strategy v1.0b",
@@ -25,12 +25,13 @@ strategy(title                   = "Smart Grid Strategy v1.0b",
          max_lines_count         = 500,
          process_orders_on_close = true)
 // -----------------------
-//strategy.risk.max_drawdown(value = 50, type = strategy.percent_of_equity) //max risk
+//strategy.risk.max_drawdown(value = 50, type = strategy.percent_of_equity) // total max risk
 // -----------------------
 
-// ========================= //
-// ==== STRATEGY TIMING ==== //
-// ========================= //
+// kr0n0s_subroutine_vers-1.0 , 31.dec.2024
+// ====================== //
+// ====    TIMING    ==== //
+// ====================== //
 
 // -----------------------
 timingX       =   true
@@ -53,14 +54,29 @@ if timEnabler and time < startTime
     timingX   :=  false
 // -----------------------
 
+// kr0n0s_subroutine_vers-1.0 , 31.dec.2024
 // ====================== //
 // ====     DATA     ==== //
 // ====================== //
 
 // -----------------------
+// DEFAULT
+// -----------------------
+// Inputs
 timeframe      = input.timeframe  ("1",    title = "Timeframe",                                            group = "Data"   )
 src            = input.source     (close,  title = "Source",                                               group = "Data"   )
 // -----------------------
+// Vars
+openLong      = false
+openShort     = false
+closeLong     = false
+closeShort    = false
+// -----------------------
+
+// -----------------------
+// SPECIFIC
+// -----------------------
+// Inputs
 step           = input.float      (0.5,    title = "Grid Step %",    minval=0.0, step=0.1,                 group = "Trading") / 100
 grid_levels    = input.int        (10,      title = "Max Grids #", minval=0,   maxval=999,                  group = "Trading")
 
@@ -78,8 +94,7 @@ arK            = input.int        (10,      title = "Asymmetry Factor #", minval
 
 reset          = input.bool       (false,  title = "Average Reset",                                        group = "Trading")
 Gamma          = input.bool       (false,  title = "Recovery Stake",                                       group = "Trading")
-
-
+// -----------------------
 // Vars
 src           := request.security(syminfo.tickerid, timeframe, src)
 var Auto       = false
@@ -99,15 +114,9 @@ var recovery2 = false
 var reduction = false
 var startL    = false
 var startS    = false
-// Defaults
-openLong      = false
-openShort     = false
-closeLong     = false
-closeShort    = false
 // -----------------------
 
-
-
+// kr0n0s_subroutine_vers-1.0 , 31.dec.2024
 // ====================== //
 // ====   ENGINE     ==== //
 // ====================== //
@@ -119,8 +128,10 @@ Short        = (strategy.position_size <  0)     // Placeholder Short Position
 NoPos        = (strategy.position_size == 0)     // Placeholder No Position
 if PyramidL > grid_levels or PyramidS > grid_levels
     NoPos := true
+    
 // -----------------------
-// ----------------------- LONG MODE
+// LONG MODE
+// ----------------------- 
 // start grid, ex novo
 if (NoPos and (trade_type == "LONG")) or startL //open long
     openLong  := true
@@ -168,8 +179,10 @@ if reduction and PyramidL < grid_levels-faK and Delta and (trade_type == "LONG")
     xID:= "L "+ str.tostring(PyramidL+faK+1)
     reduction := false
     PyramidL := PyramidL -1
+    
 // -----------------------
-// ----------------------- SHORT MODE
+//SHORT MODE
+// ----------------------- 
 // start grid, ex novo
 if (NoPos and (trade_type == "SHORT")) or startS //open short
     openShort  := true
@@ -219,12 +232,13 @@ if reduction and PyramidS < grid_levels-faK and Delta and (trade_type == "SHORT"
     PyramidS := PyramidS -1
 
 // -----------------------
-// ----------------------- AUTO MODE
+// AUTO MODE
+// -----------------------
 LongSignal  = false
 ShortSignal = false
 // -----------------------
 // Engine
-activity = request.seed("seed_Kr0n-0s_tradingview","activity",close)
+activity = 2 // nop placeholder
 // Decision
 if activity == 1
     LongSignal := true
@@ -248,14 +262,14 @@ if Auto and (trade_type == "SHORT") and LongSignal
 if Auto and (trade_type == "LONG") and ShortSignal
     trade_type := "SHORT"
     strategy.close_all(comment="REVERSE/S")
-
 // -----------------------
 
+// kr0n0s_subroutine_vers-1.0 , 31.dec.2024
 // ====================== //
 // ====    TRADE     ==== //
 // ====================== //
 
-
+// -----------------------
 // CLOSE POSITION
 // -----------------------
 if closeLong
@@ -266,9 +280,10 @@ if closeShort
     strategy.close(id = xID, comment="EXIT-" + xID + " (†" + str.tostring(math.round(strategy.max_drawdown_percent,2)) + "%)" ) //exit short
     PyramidS   := PyramidS + 1
     LastPriceS := src
-// -----------------------
 
+// -----------------------
 // PUMP STRATEGY
+// -----------------------
 quantity = (hodlquantity/src)
 // ----------------------- LONG
 // Pump Profit Position
@@ -299,6 +314,7 @@ if timingX and hodl and (src <= starthodl * (1 - (grid_step))) and (trade_type =
     hodlnumber := 0
     starthodl  := 0
 
+// -----------------------
 // OPEN POSITION
 // -----------------------
 if openLong and timingX
@@ -307,10 +323,12 @@ if openShort and timingX
     strategy.entry(id = xID, direction = strategy.short, comment="ENTER-" + xID + " :" + str.tostring(src)) //enter short
 // -----------------------
 
-
+// kr0n0s_subroutine_vers-1.0 , 31.dec.2024
 // ====================== //
 // ====     PLOT     ==== //
 // ====================== //
+
+// -----------------------
 LastPrice = src
 if trade_type == "LONG"
     LastPrice := LastPriceL
