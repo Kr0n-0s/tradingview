@@ -1,4 +1,4 @@
-// kr0n0s_header-subroutine_vers-1.1 , 26.feb.2025
+// kr0n0s_header-subroutine-vers-1.1 , 26.feb.2025
 // ====================== //
 // ====   STRATEGY   ==== //
 // ====================== //
@@ -8,7 +8,7 @@
 //Smart  Grid Strategy : BTC/USDT futures on 1 minute timeframe
 // -----------------------
 strategy(title                   = "Smart Grid Strategy v1.1b",
-         shorttitle              = "SGS-v1.0b",
+         shorttitle              = "SGS-v1beta",
          overlay                 = true,
          max_bars_back           = 1000,
          initial_capital         = 10000,
@@ -34,13 +34,13 @@ strategy(title                   = "Smart Grid Strategy v1.1b",
 // ====================== //
 
 // -----------------------
-timingX       =   true
+timingX   =   true
 timEnabler    =   input.bool   (false,           title = "Time limit",                                                        group = "Start Time")
-startDay      =   input.int    (defval = 22,     title = "D : M : Y", step=1, minval = 1, maxval = 31,      inline ="date",   group = "Start Time")
-startMonth    =   input.int    (defval = 02,     title = ":",         step=1, minval = 1, maxval = 12,      inline ="date",   group = "Start Time")
+startDay      =   input.int    (defval = 17,     title = "D : M : Y", step=1, minval = 1, maxval = 31,      inline ="date",   group = "Start Time")
+startMonth    =   input.int    (defval = 03,     title = ":",         step=1, minval = 1, maxval = 12,      inline ="date",   group = "Start Time")
 startYStr     =   input.string (defval = "2025", title = ":",         options=["2024","2025","2026","2027"],inline ="date",   group = "Start Time")
 startHour     =   input.int    (defval = 06,     title = "Hrs : Min ",step=1, minval = 0, maxval = 24,      inline= "clock",  group = "Start Time") - 1 //utc adjust
-startMinute   =   input.int    (defval = 06,     title = ":",         step=1, minval = 0, maxval = 59,      inline= "clock",  group = "Start Time")
+startMinute   =   input.int    (defval = 00,     title = ":",         step=1, minval = 0, maxval = 59,      inline= "clock",  group = "Start Time")
 //
 startYear     =  2027
 if startYStr  == "2026"
@@ -77,22 +77,22 @@ closeShort    = false
 // SPECIFIC
 // -----------------------
 // Inputs
-step           = input.float      (0.25,   title = "Grid Step %",    minval=0.0, step=0.1,                  group = "Trading") / 100
-grid_levels    = input.int        (100,    title = "Total Grids #",  minval=0,   maxval=999,                group = "Trading")
+var step           = input.float      (0.3,  title = "Grid Step %",   minval=0.0, step=0.001,                group = "Trading") / 100
+grid_levels    = input.int        (150,   title = "Total Grids #",  minval=0,   maxval=999,                group = "Trading")
 
-var trade_type = input.string     ("AUTO", title = "Trade Type", options=["LONG", "SHORT", "AUTO", "OFF"],  group = "Trading")
+var trade_type = input.string     ("AUTO",title = "Trade Type", options=["LONG", "SHORT", "AUTO", "OFF"],  group = "Trading")
 
-Delta          = input.bool       (false,  title = "Infinite Grid",                                         group = "Trading")
-faK            = input.int        (07,     title = "Max Open Grids #", minval = 0, step = 1,                group = "Trading")
+Delta          = input.bool       (true,  title = "Infinite Grid",                                         group = "Trading")
+faK            = input.int        (50,    title = "Max Open Grids #", minval = 0, step = 1,                group = "Trading")
 
 hodl           = input.bool       (false,  title = "Profit Pump",                                           group = "Trading")
-hodlquantity   = input.float      (1.0,    title = "Pump %", minval = 0.1, step = 0.1,                      group = "Trading")
+hodlquantity   = input.float      (3,   title = "Pump Zone >%", minval = 0.1, step = 0.1,                group = "Trading")
 
-Beta           = input.bool       (true,   title = "Asymmetric Grid",                                       group = "Trading")
-arK            = input.int        (3,      title = "Asymmetric Range K#", minval = -20, maxval = 60,        group = "Trading") / 10
+Beta           = input.bool       (true,  title = "Asymmetric Grid",                                       group = "Trading")
+arK            = input.float      (2.3,   title = "Asymmetric Range K#", maxval = 60, step=0.1,            group = "Trading") / 10
 
-reset          = input.bool       (false,  title = "Average Reset",                                         group = "Trading")
-Gamma          = input.bool       (false,  title = "Recovery Extra-Stake",                                  group = "Trading")
+reset          = input.bool       (true,  title = "Average Reset",                                         group = "Trading")
+Gamma          = input.bool       (true,  title = "Extra-Stake",                                           group = "Trading")
 // -----------------------
 // Vars
 src           := request.security(syminfo.tickerid, timeframe, src)
@@ -113,9 +113,12 @@ var recovery2  = false
 var reduction  = false
 var startL     = false
 var startS     = false
+var gammaL     = 0.0
+var gammaS     = 0.0
+var Halt = false
 // -----------------------
 
-// kr0n0s_engine-subroutine_vers-1.1 , 26.feb.2025
+// kr0n0s_engine-subroutine-vers-1.1 , 26.feb.2025
 // ====================== //
 // ====   ENGINE     ==== //
 // ====================== //
@@ -158,20 +161,30 @@ if Long and (src >= LastPriceL * (1 + (grid_step))) and (trade_type == "LONG")  
     closeLong := true
     xID:= "L "+ str.tostring(PyramidL)
 // -----------------------
-// option: reset grid -harvest chips
-if Long and reset and (PyramidL < (grid_levels - 1)) and (src >= AverPrice * (1 + (grid_step*math.sqrt(2)))) and (trade_type == "LONG")  //reset longs on Pythagoras Constant
-    strategy.close_all(comment="RESET_" + str.tostring(grid_levels) + " (†" + str.tostring(math.round(strategy.max_drawdown_percent,2)) + "%)")
+// option: average reset grid -harvest chips
+if Long and reset and (PyramidL < (grid_levels - 1)) and (src >= AverPrice * (1 + (grid_step*3))) and (trade_type == "LONG")  //reset longs on Laplace limit * freiman Constant
+    strategy.close_all(comment="PROFIT" + " (†" + str.tostring(math.round(strategy.max_drawdown_percent,2)) + "%)")
     recovery1 := false
     recovery2 := false
-// Gamma option: drawdown recovery
-if Long and PyramidL == 0 and (trade_type == "LONG") and (src <= LastPriceL * 0.90) and Gamma and not recovery1
+// Gamma option:  extra stake
+if Long and PyramidL <= 0 and (trade_type == "LONG") and (src <= LastPriceL * 0.99) and Gamma and not recovery1
     recovery1 := true
     openLong  := true
-    xID:= "R1" 
-if Long and PyramidL == 0 and (trade_type == "LONG") and (src <= LastPriceL * 0.80) and Gamma and not recovery2
+    xID:= "Extra" 
+    gammaL := src
+if Long and PyramidL <= 0 and (trade_type == "LONG") and (src <= LastPriceL * 0.985) and Gamma and not recovery2
     recovery2 := true
     openLong  := true
-    xID:= "R2" 
+    xID:= "Extra" 
+    gammaL := src
+if Long and (gammaL < src * 0.985) and (trade_type == "LONG") and recovery1 and Gamma and not (openLong or closeLong)
+    closeLong := true
+    PyramidL   := PyramidL - 1
+    xID := "Extra"
+    recovery1 := false
+    if recovery2
+        xID := "Extra"
+        recovery2 := false
 // Long option: drawdown reduction (infinite grid)
 if reduction and PyramidL < grid_levels-faK and Delta and (trade_type == "LONG") and not openLong
     closeLong := true
@@ -209,20 +222,30 @@ if Short and (src <= LastPriceS * (1 - (grid_step))) and (trade_type == "SHORT")
     closeShort := true
     xID:=  "S "+ str.tostring(PyramidS)
 // -----------------------
-// option: reset grid -harvest chips
-if Short and reset and (PyramidS < (grid_levels - 1)) and (src <= AverPrice * (1 - (grid_step*math.sqrt(2)))) and (trade_type == "SHORT")  //reset longs on Pythagoras Constant
-    strategy.close_all(comment="RESET_" + str.tostring(grid_levels) + " (†" + str.tostring(math.round(strategy.max_drawdown_percent,2)) + "%)")
+// option: average reset grid -harvest chips
+if Short and reset and (PyramidS < (grid_levels - 1)) and (src <= AverPrice * (1 - (grid_step*3))) and (trade_type == "SHORT")  //reset shorts on Laplace limit * freiman Constant
+    strategy.close_all(comment="PROFIT" + " (†" + str.tostring(math.round(strategy.max_drawdown_percent,2)) + "%)")
     recovery1 := false
     recovery2 := false
-// Gamma option: drawdown recovery
-if Short and PyramidS == 0 and (trade_type == "SHORT") and (src >= LastPriceS * 1.1) and Gamma and not recovery1
+// Gamma option: extra stake
+if Short and PyramidS <= 0 and (trade_type == "SHORT") and (src >= LastPriceS / 0.99) and Gamma and not recovery1
     recovery1 := true
     openShort  := true
-    xID:= "R1" 
-if Short and PyramidS == 0 and (trade_type == "SHORT") and (src >= LastPriceS * 1.2) and Gamma and not recovery2
+    xID:= "Extra" 
+    gammaS := src
+if Short and PyramidS <= 0 and (trade_type == "SHORT") and (src >= LastPriceS / 0.985) and Gamma and not recovery2
     recovery2 := true
     openShort  := true
-    xID:= "R2" 
+    xID:= "Extra" 
+    gammaS := src
+if Short and (gammaS > src / 0.985) and (trade_type == "SHORT") and recovery1 and Gamma and not (openShort or closeShort)
+    closeShort := true
+    xID := "Extra"
+    PyramidS   := PyramidS - 1
+    recovery1 := false
+    if recovery2
+        xID := "Extra"
+        recovery2 := false
 // Short option: drawdown reduction (infinite grid)
 if reduction and PyramidS < grid_levels-faK and Delta and (trade_type == "SHORT") and not openShort
     closeShort := true
@@ -236,9 +259,16 @@ if reduction and PyramidS < grid_levels-faK and Delta and (trade_type == "SHORT"
 LongSignal  = false
 ShortSignal = false
 // -----------------------
-// Engine (experimental)
-LongSignal  := (src[30] < src[10] and src[10] < src*0.99) //  up-trend signal
-ShortSignal := (src[30] > src[1] and src[10] > src*1.01) //  dn-trend signal
+// Automation Engine
+autoLev = input.int(60,"MacroTrend bars #", group ="Auto engine")
+baseLev = input.int(6,"MicroTrend bars #", group ="Auto engine")
+targetProfit = input.int(100000,"Cash Target x", group ="Auto engine")
+//
+avsig = request.security(syminfo.tickerid, "60", ta.sma(src,autoLev)) // moving average hourly level
+basig = request.security(syminfo.tickerid, "60", ta.sma(src,baseLev)) // base hourly level
+contLev =  basig-avsig
+LongSignal  := (basig > avsig) //ta.crossover (basig , avsig)
+ShortSignal := (basig < avsig) //ta.crossunder(basig , avsig)
 // -----------------------
 // AUTO: Start strategy
 if Auto and (trade_type == "AUTO") and NoPos
@@ -253,13 +283,69 @@ if Auto and (trade_type == "SHORT") and LongSignal
     trade_type := "LONG"
     strategy.close_all(comment="REVERSE/L "+ " (†" + str.tostring(math.round(strategy.max_drawdown_percent,2)) + "%)")
     LastPriceL := src
+    openShort := false
+    startL := true
 // AUTO: Short strategy
 if Auto and (trade_type == "LONG") and ShortSignal
     trade_type := "SHORT"
     strategy.close_all(comment="REVERSE/S "+ " (†" + str.tostring(math.round(strategy.max_drawdown_percent,2)) + "%)")
     LastPriceS := src
+    openLong := false
+    startS := true
+// AUTO: Stop strategy
+if trade_type == "SHORT" and (src > basig)
+    if openShort
+        openShort := false
+        //PyramidS := PyramidS + 1
+if trade_type == "LONG" and (src < basig)
+    if openLong
+        openLong := false
+        //PyramidL := PyramidL + 1
+
+if (contLev[baseLev]>= contLev and trade_type == "LONG")
+    if openLong
+        openLong := false
+        //PyramidL := PyramidL + 1
+if (contLev[baseLev]<= contLev and trade_type == "SHORT")
+    if openShort
+        openShort := false
+        //PyramidS := PyramidS + 1
+
+if ((ShortSignal or src < avsig) and trade_type == "LONG") and not Auto
+    openLong := false
+    strategy.close_all(comment="HALT-L")
+if ((LongSignal or src > avsig) and trade_type == "SHORT") and not Auto
+    openShort := false
+    strategy.close_all(comment="HALT-S")
+
+// AUTO: End strategy
+if Auto and (strategy.netprofit + strategy.openprofit) >= targetProfit
+    Halt := true
+    strategy.close_all(comment="**-> END <-**")
+
+// AUTO: Close position after xyz bars
+StLimit = input.bool(true,"Stake Limit", group="Auto engine")
+var BarNo = input.int(280, "Max bars#", group="Auto engine")
+barsSinceLastEntry() =>
+    strategy.opentrades > 0 ? bar_index - strategy.opentrades.entry_bar_index(strategy.opentrades - 1) : na
+if Auto and barsSinceLastEntry() >= BarNo and StLimit and strategy.openprofit > -strategy.avg_losing_trade
+    strategy.close_all(comment="STAKELIMIT /"+str.tostring(math.round(step,4)))
+// AUTO: Variable step
+VarK = input.bool(true,"Auto variable step", group="Auto engine")
+if Auto and VarK and strategy.avg_trade > strategy.avg_trade[1]
+    step := step - 0.0005
+if Auto and VarK and strategy.avg_trade < strategy.avg_trade[1]
+    step := step + 0.0005
+
 // -----------------------
 // debug:
+// AUTO: Variable Close Bars stake limit
+VarCB = input.bool(false,"Auto variable Stake Limit", group="beta")
+if Auto and VarCB and strategy.avg_losing_trade > strategy.avg_losing_trade[1]
+    BarNo := BarNo - 1
+if Auto and VarCB and strategy.avg_losing_trade < strategy.avg_losing_trade[1]
+    BarNo := BarNo + 1
+
 
 // kr0n0s_trade-subroutine_vers-1.0 , 31.dec.2024
 // ====================== //
@@ -284,7 +370,7 @@ if closeShort
 quantity = 0.001 // BTC minimum tradeable quantity
 // ----------------------- LONG
 // Pump Profit Position
-if openLong and timingX and hodl and strategy.netprofit_percent>=hodlquantity*5 and PyramidL <= (grid_levels-5) and (trade_type == "LONG")
+if openLong and timingX and hodl and strategy.netprofit_percent>=hodlquantity and PyramidL <= (grid_levels-5) and (trade_type == "LONG")
     strategy.entry( id = "Pump-L", direction = strategy.long, qty = quantity, comment="LONG PUMP " + str.tostring(hodlnumber+1) ) //enter hodl
     entrypoint := entrypoint + src
     hodlnumber := hodlnumber + 1
@@ -298,7 +384,7 @@ if timingX and hodl and (src >= starthodl * (1 + (grid_step))) and (trade_type =
     starthodl  := 0
 // ----------------------- SHORT
 // Pump Profit Position
-if openShort and timingX and hodl and strategy.netprofit_percent>=hodlquantity*5 and PyramidS <= (grid_levels-5) and (trade_type == "SHORT")
+if openShort and timingX and hodl and strategy.netprofit_percent>=hodlquantity and PyramidS <= (grid_levels-5) and (trade_type == "SHORT")
     strategy.entry( id = "Pump-S", direction = strategy.short, qty = quantity, comment="SHORT PUMP " + str.tostring(hodlnumber+1) ) //enter hodl
     entrypoint := entrypoint + src
     hodlnumber := hodlnumber + 1
@@ -314,9 +400,10 @@ if timingX and hodl and (src <= starthodl * (1 - (grid_step))) and (trade_type =
 // -----------------------
 // OPEN POSITION
 // -----------------------
-if openLong and timingX
+
+if openLong and timingX and not Halt
     strategy.entry(id = xID, direction = strategy.long, comment="ENTER-" + xID + " :" + str.tostring(src)) //enter long
-if openShort and timingX
+if openShort and timingX and not Halt
     strategy.entry(id = xID, direction = strategy.short, comment="ENTER-" + xID + " :" + str.tostring(src)) //enter short
 // -----------------------
 
@@ -339,6 +426,11 @@ if Beta and (trade_type == "LONG")
     LinePrice3 := LastPrice * (1 - (grid_step*(arK)))
 if Beta and (trade_type == "SHORT")
     LinePrice1 := LastPrice * (1 + (grid_step*(arK)))
+//Debug:
+if NoPos
+    LinePrice1 := src
+    LinePrice2 := src
+    LinePrice3 := src
 // -----------------------
 a = plot(LinePrice1, "Price1 line", style= plot.style_line, linewidth = 2, color = color.rgb(020, 239, 009, 050))
 b = plot(LinePrice2, "Price2 line", style= plot.style_line, linewidth = 1, color = color.rgb(037, 191, 229, 050))
@@ -348,3 +440,11 @@ fill(a, b, color = color.rgb(8, 175, 247, 80))
 fill(c, b, color = color.rgb(243, 235, 4, 80))
 // -----------------------
 // debug:
+debug = input.bool (false, "Debug Decision Lines", group ="Debug")
+colorlineA = color.rgb(238, 246, 12, 100)
+colorlineB = color.rgb(3, 249, 233, 100)
+if debug 
+    colorlineA :=color.rgb(238, 246, 12, 50)
+    colorlineB :=color.rgb(3, 249, 233, 50)
+plot(avsig, "A. line", style= plot.style_line, linewidth = 2, color =colorlineA)
+plot(basig, "B. line", style= plot.style_line, linewidth = 2, color = colorlineB)
